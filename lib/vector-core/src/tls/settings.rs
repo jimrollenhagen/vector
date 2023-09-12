@@ -107,6 +107,14 @@ pub struct TlsConfig {
     /// Do NOT set this to `false` unless you understand the risks of not verifying the remote hostname.
     pub verify_hostname: Option<bool>,
 
+    /// Alternate hostname to use for hostname verification.
+    ///
+    /// If set, this hostname must be present in the TLS certificate presented by the remote host,
+    /// either as the Common Name or as an entry in the Subject Alternative Name extension.
+    ///
+    /// Only relevant for outgoing connections.
+    pub alt_hostname: Option<String>,
+
     /// Sets the list of supported ALPN protocols.
     ///
     /// Declare the supported ALPN protocols, which are used during negotiation with peer. They are prioritized in the order
@@ -166,6 +174,7 @@ impl TlsConfig {
 pub struct TlsSettings {
     verify_certificate: bool,
     pub(super) verify_hostname: bool,
+    pub(super) alt_hostname: Option<String>,
     authorities: Vec<X509>,
     pub(super) identity: Option<IdentityStore>, // openssl::pkcs12::ParsedPkcs12 doesn't impl Clone yet
     alpn_protocols: Option<Vec<u8>>,
@@ -193,6 +202,7 @@ impl TlsSettings {
                 );
             }
             if options.verify_hostname == Some(false) {
+                // TODO(jroll) first check if we have an alt_hostname and fail, as that doesn't make sense
                 warn!("The `verify_hostname` option is DISABLED, this may lead to security vulnerabilities.");
             }
         }
@@ -200,6 +210,7 @@ impl TlsSettings {
         Ok(Self {
             verify_certificate: options.verify_certificate.unwrap_or(!for_server),
             verify_hostname: options.verify_hostname.unwrap_or(!for_server),
+            alt_hostname: options.alt_hostname.clone(),
             authorities: options.load_authorities()?,
             identity: options.load_identity()?,
             alpn_protocols: options.parse_alpn_protocols()?,
@@ -319,7 +330,19 @@ impl TlsSettings {
     }
 
     pub fn apply_connect_configuration(&self, connection: &mut ConnectConfiguration) {
+        connection.set_use_server_name_indication(false);
         connection.set_verify_hostname(self.verify_hostname);
+        match &self.alt_hostname {
+            None => (),
+            Some(hostname) => {
+                let res = connection.set_hostname(hostname);
+                match res {
+                    Ok(_) => (),
+                    // TODO(jroll) actually handle errors here
+                    Err(e) => warn!("failed to set_hostname: {}", e.to_string()),
+                }
+            }
+        }
     }
 }
 
