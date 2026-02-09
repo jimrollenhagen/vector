@@ -13,6 +13,7 @@ use super::{
 use crate::{
     aws::{AwsAuthentication, RegionOrEndpoint, create_client},
     common::sqs::SqsClientBuilder,
+    dns::DnsResolver,
     config::{ProxyConfig, SinkConfig, SinkContext},
     test_util::{
         components::{AWS_SINK_TAGS, run_and_assert_sink_compliance},
@@ -37,6 +38,7 @@ async fn create_sns_test_client() -> SnsClient {
         &proxy,
         None,
         None,
+        DnsResolver::default(),
     )
     .await
     .unwrap()
@@ -59,6 +61,7 @@ async fn create_sqs_test_client() -> SqsClient {
         &proxy,
         None,
         None,
+        DnsResolver::default(),
     )
     .await
     .unwrap()

@@ -11,6 +11,7 @@ use super::{config::KinesisClientBuilder, *};
 use crate::{
     aws::{AwsAuthentication, RegionOrEndpoint, create_client},
     config::{ProxyConfig, SinkConfig, SinkContext},
+    dns::DnsResolver,
     sinks::util::{BatchConfig, Compression},
     test_util::{
         components::{AWS_SINK_TAGS, run_and_assert_sink_compliance},
@@ -182,6 +183,7 @@ async fn client() -> aws_sdk_kinesis::Client {
         &proxy,
         None,
         None,
+        DnsResolver::default(),
     )
     .await
     .unwrap()

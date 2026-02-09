@@ -11,6 +11,7 @@ use crate::{
         AcknowledgementsConfig, DataType, GenerateConfig, Input, ProxyConfig, SinkConfig,
         SinkContext,
     },
+    dns::DnsResolver,
 };
 
 /// Configuration for the `aws_sns` sink.
@@ -45,7 +46,11 @@ impl GenerateConfig for SnsSinkConfig {
 }
 
 impl SnsSinkConfig {
-    pub(super) async fn create_client(&self, proxy: &ProxyConfig) -> crate::Result<SnsClient> {
+    pub(super) async fn create_client(
+        &self,
+        proxy: &ProxyConfig,
+        dns_resolver: DnsResolver,
+    ) -> crate::Result<SnsClient> {
         create_client::<SnsClientBuilder>(
             &SnsClientBuilder {},
             &self.base_config.auth,
@@ -54,6 +59,7 @@ impl SnsSinkConfig {
             proxy,
             self.base_config.tls.as_ref(),
             None,
+            dns_resolver,
         )
         .await
     }
@@ -66,7 +72,7 @@ impl SinkConfig for SnsSinkConfig {
         &self,
         cx: SinkContext,
     ) -> crate::Result<(crate::sinks::VectorSink, crate::sinks::Healthcheck)> {
-        let client = self.create_client(&cx.proxy).await?;
+        let client = self.create_client(&cx.proxy, cx.dns_resolver()).await?;
 
         let publisher = SnsMessagePublisher::new(client.clone(), self.topic_arn.clone());
 

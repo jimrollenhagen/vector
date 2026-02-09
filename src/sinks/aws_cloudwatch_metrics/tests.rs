@@ -4,7 +4,7 @@ use similar_asserts::assert_eq;
 use vector_lib::metric_tags;
 
 use super::*;
-use crate::event::metric::{Metric, MetricKind, MetricValue, StatisticKind};
+use crate::{dns::DnsResolver, event::metric::{Metric, MetricKind, MetricValue, StatisticKind}};
 
 fn timestamp(time: &str) -> DateTime {
     DateTime::from_millis(
@@ -31,7 +31,7 @@ fn config() -> CloudWatchMetricsSinkConfig {
 async fn svc() -> CloudWatchMetricsSvc {
     let config = config();
     let client = config
-        .create_client(&ProxyConfig::from_env())
+        .create_client(&ProxyConfig::from_env(), DnsResolver::default())
         .await
         .unwrap();
     CloudWatchMetricsSvc {

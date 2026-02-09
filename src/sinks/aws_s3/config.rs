@@ -15,6 +15,7 @@ use crate::{
     aws::{AwsAuthentication, RegionOrEndpoint},
     codecs::{Encoder, EncodingConfigWithFraming, SinkType},
     config::{AcknowledgementsConfig, GenerateConfig, Input, ProxyConfig, SinkConfig, SinkContext},
+    dns::DnsResolver,
     sinks::{
         Healthcheck,
         s3_common::{
@@ -194,7 +195,7 @@ impl GenerateConfig for S3SinkConfig {
 #[typetag::serde(name = "aws_s3")]
 impl SinkConfig for S3SinkConfig {
     async fn build(&self, cx: SinkContext) -> crate::Result<(VectorSink, Healthcheck)> {
-        let service = self.create_service(&cx.proxy).await?;
+        let service = self.create_service(&cx.proxy, cx.dns_resolver()).await?;
         let healthcheck = self.build_healthcheck(service.client())?;
         let sink = self.build_processor(service, cx)?;
         Ok((sink, healthcheck))
@@ -269,13 +270,18 @@ impl S3SinkConfig {
         s3_common::config::build_healthcheck(self.bucket.clone(), client)
     }
 
-    pub async fn create_service(&self, proxy: &ProxyConfig) -> crate::Result<S3Service> {
+    pub async fn create_service(
+        &self,
+        proxy: &ProxyConfig,
+        dns_resolver: DnsResolver,
+    ) -> crate::Result<S3Service> {
         s3_common::config::create_service(
             &self.region,
             &self.auth,
             proxy,
             self.tls.as_ref(),
             self.force_path_style,
+            dns_resolver,
         )
         .await
     }

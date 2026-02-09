@@ -12,6 +12,7 @@ use super::*;
 use crate::{
     aws::{AwsAuthentication, ClientBuilder, RegionOrEndpoint, create_client},
     config::{ProxyConfig, SinkConfig, SinkContext, log_schema},
+    dns::DnsResolver,
     event::{Event, LogEvent, Value},
     sinks::{aws_cloudwatch_logs::config::CloudwatchLogsClientBuilder, util::BatchConfig},
     template::Template,
@@ -567,7 +568,10 @@ async fn cloudwatch_healthcheck() {
         tags: None,
     };
 
-    let client = config.create_client(&ProxyConfig::default()).await.unwrap();
+    let client = config
+        .create_client(&ProxyConfig::default(), DnsResolver::default())
+        .await
+        .unwrap();
     healthcheck(config, client).await.unwrap();
 }
 
@@ -585,6 +589,7 @@ async fn create_client_test() -> CloudwatchLogsClient {
         &proxy,
         None,
         None,
+        DnsResolver::default(),
     )
     .await
     .unwrap()
@@ -604,6 +609,7 @@ async fn create_kms_client_test() -> KMSClient {
         &proxy,
         None,
         None,
+        DnsResolver::default(),
     )
     .await
     .unwrap()

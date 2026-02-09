@@ -48,6 +48,7 @@ pub use timeout::AwsTimeout;
 
 use crate::{
     config::ProxyConfig,
+    dns::DnsResolver,
     http::{build_proxy_connector, build_tls_connector, status},
     internal_events::AwsBytesSent,
     tls::{MaybeTlsSettings, TlsConfig},
@@ -108,14 +109,15 @@ fn check_response(res: &HttpResponse) -> bool {
 fn connector(
     proxy: &ProxyConfig,
     tls_options: Option<&TlsConfig>,
+    dns_resolver: DnsResolver,
 ) -> crate::Result<SharedHttpClient> {
     let tls_settings = MaybeTlsSettings::tls_client(tls_options)?;
 
     if proxy.enabled {
-        let proxy = build_proxy_connector(tls_settings, proxy)?;
+        let proxy = build_proxy_connector(tls_settings, proxy, dns_resolver)?;
         Ok(HyperClientBuilder::new().build(proxy))
     } else {
-        let tls_connector = build_tls_connector(tls_settings)?;
+        let tls_connector = build_tls_connector(tls_settings, dns_resolver)?;
         Ok(HyperClientBuilder::new().build(tls_connector))
     }
 }
@@ -133,9 +135,10 @@ pub trait ClientBuilder {
 pub fn region_provider(
     proxy: &ProxyConfig,
     tls_options: Option<&TlsConfig>,
+    dns_resolver: DnsResolver,
 ) -> crate::Result<impl ProvideRegion + use<>> {
     let config = aws_config::provider_config::ProviderConfig::default()
-        .with_http_client(connector(proxy, tls_options)?);
+        .with_http_client(connector(proxy, tls_options, dns_resolver)?);
 
     Ok(aws_config::meta::region::RegionProviderChain::first_try(
         aws_config::environment::EnvironmentVariableRegionProvider::new(),
@@ -152,10 +155,11 @@ async fn resolve_region(
     proxy: &ProxyConfig,
     tls_options: Option<&TlsConfig>,
     region: Option<Region>,
+    dns_resolver: DnsResolver,
 ) -> crate::Result<Region> {
     match region {
         Some(region) => Ok(region),
-        None => region_provider(proxy, tls_options)?
+        None => region_provider(proxy, tls_options, dns_resolver)?
             .region()
             .await
             .ok_or_else(|| {
@@ -165,6 +169,7 @@ async fn resolve_region(
 }
 
 /// Create the SDK client using the provided settings.
+#[allow(clippy::too_many_arguments)]
 pub async fn create_client<T>(
     builder: &T,
     auth: &AwsAuthentication,
@@ -173,16 +178,27 @@ pub async fn create_client<T>(
     proxy: &ProxyConfig,
     tls_options: Option<&TlsConfig>,
     timeout: Option<&AwsTimeout>,
+    dns_resolver: DnsResolver,
 ) -> crate::Result<T::Client>
 where
     T: ClientBuilder,
 {
-    create_client_and_region::<T>(builder, auth, region, endpoint, proxy, tls_options, timeout)
-        .await
-        .map(|(client, _)| client)
+    create_client_and_region::<T>(
+        builder,
+        auth,
+        region,
+        endpoint,
+        proxy,
+        tls_options,
+        timeout,
+        dns_resolver,
+    )
+    .await
+    .map(|(client, _)| client)
 }
 
 /// Create the SDK client and resolve the region using the provided settings.
+#[allow(clippy::too_many_arguments)]
 pub async fn create_client_and_region<T>(
     builder: &T,
     auth: &AwsAuthentication,
@@ -191,6 +207,7 @@ pub async fn create_client_and_region<T>(
     proxy: &ProxyConfig,
     tls_options: Option<&TlsConfig>,
     timeout: Option<&AwsTimeout>,
+    dns_resolver: DnsResolver,
 ) -> crate::Result<(T::Client, Region)>
 where
     T: ClientBuilder,
@@ -199,12 +216,12 @@ where
 
     // The default credentials chains will look for a region if not given but we'd like to
     // error up front if later SDK calls will fail due to lack of region configuration
-    let region = resolve_region(proxy, tls_options, region).await?;
+    let region = resolve_region(proxy, tls_options, region, dns_resolver).await?;
 
     let provider_config =
         aws_config::provider_config::ProviderConfig::empty().with_region(Some(region.clone()));
 
-    let connector = connector(proxy, tls_options)?;
+    let connector = connector(proxy, tls_options, dns_resolver)?;
 
     // Create a custom http connector that will emit the required metrics for us.
     let connector = AwsHttpClient {

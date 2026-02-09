@@ -12,6 +12,7 @@ use crate::{
     aws::{auth::AwsAuthentication, create_client, region::RegionOrEndpoint},
     codecs::DecodingConfig,
     common::sqs::SqsClientBuilder,
+    dns::DnsResolver,
     config::{SourceAcknowledgementsConfig, SourceConfig, SourceContext, SourceOutput},
     serde::{bool_or_struct, default_decoding, default_framing_message_based},
     sources::aws_sqs::source::SqsSource,
@@ -169,6 +170,7 @@ impl AwsSqsConfig {
             &cx.proxy,
             self.tls.as_ref(),
             None,
+            DnsResolver::default(),
         )
         .await
     }

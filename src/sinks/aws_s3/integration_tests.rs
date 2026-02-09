@@ -28,6 +28,7 @@ use vector_lib::{
 use super::S3SinkConfig;
 use crate::{
     aws::{AwsAuthentication, RegionOrEndpoint, create_client},
+    dns::DnsResolver,
     common::s3::S3ClientBuilder,
     config::SinkContext,
     sinks::{
@@ -59,7 +60,7 @@ async fn s3_insert_message_into_with_flat_key_prefix() {
     let mut config = config(&bucket, 1000000);
     config.key_prefix = "test-prefix".to_string();
     let prefix = config.key_prefix.clone();
-    let service = config.create_service(&cx.globals.proxy).await.unwrap();
+    let service = config.create_service(&cx.globals.proxy, DnsResolver::default()).await.unwrap();
     let sink = config.build_processor(service, cx).unwrap();
 
     let (lines, events, receiver) = make_events_batch(100, 10);
@@ -93,7 +94,7 @@ async fn s3_insert_message_into_with_folder_key_prefix() {
     let mut config = config(&bucket, 1000000);
     config.key_prefix = "test-prefix/".to_string();
     let prefix = config.key_prefix.clone();
-    let service = config.create_service(&cx.globals.proxy).await.unwrap();
+    let service = config.create_service(&cx.globals.proxy, DnsResolver::default()).await.unwrap();
     let sink = config.build_processor(service, cx).unwrap();
 
     let (lines, events, receiver) = make_events_batch(100, 10);
@@ -130,7 +131,7 @@ async fn s3_insert_message_into_with_ssekms_key_id() {
     config.options.server_side_encryption = Some(S3ServerSideEncryption::AwsKms);
     config.options.ssekms_key_id = Some("alias/aws/s3".to_string());
 
-    let service = config.create_service(&cx.globals.proxy).await.unwrap();
+    let service = config.create_service(&cx.globals.proxy, DnsResolver::default()).await.unwrap();
     let sink = config.build_processor(service, cx).unwrap();
 
     let (lines, events, receiver) = make_events_batch(100, 10);
@@ -168,7 +169,7 @@ async fn s3_rotate_files_after_the_buffer_size_is_reached() {
         ..config(&bucket, 10)
     };
     let prefix = config.key_prefix.clone();
-    let service = config.create_service(&cx.globals.proxy).await.unwrap();
+    let service = config.create_service(&cx.globals.proxy, DnsResolver::default()).await.unwrap();
     let sink = config.build_processor(service, cx).unwrap();
 
     let (lines, _events) = random_lines_with_stream(100, 30, None);
@@ -227,7 +228,7 @@ async fn s3_gzip() {
     };
 
     let prefix = config.key_prefix.clone();
-    let service = config.create_service(&cx.globals.proxy).await.unwrap();
+    let service = config.create_service(&cx.globals.proxy, DnsResolver::default()).await.unwrap();
     let sink = config.build_processor(service, cx).unwrap();
 
     let (lines, events, receiver) = make_events_batch(100, batch_size * batch_multiplier);
@@ -272,7 +273,7 @@ async fn s3_zstd() {
     };
 
     let prefix = config.key_prefix.clone();
-    let service = config.create_service(&cx.globals.proxy).await.unwrap();
+    let service = config.create_service(&cx.globals.proxy, DnsResolver::default()).await.unwrap();
     let sink = config.build_processor(service, cx).unwrap();
 
     let (lines, events, receiver) = make_events_batch(100, batch_size * batch_multiplier);
@@ -334,7 +335,7 @@ async fn s3_insert_message_into_object_lock() {
 
     let config = config(&bucket, 1000000);
     let prefix = config.key_prefix.clone();
-    let service = config.create_service(&cx.globals.proxy).await.unwrap();
+    let service = config.create_service(&cx.globals.proxy, DnsResolver::default()).await.unwrap();
     let sink = config.build_processor(service, cx).unwrap();
 
     let (lines, events, receiver) = make_events_batch(100, 10);
@@ -366,7 +367,7 @@ async fn acknowledges_failures() {
     // Break the bucket name
     config.bucket = format!("BREAK{}IT", config.bucket);
     let prefix = config.key_prefix.clone();
-    let service = config.create_service(&cx.globals.proxy).await.unwrap();
+    let service = config.create_service(&cx.globals.proxy, DnsResolver::default()).await.unwrap();
     let sink = config.build_processor(service, cx).unwrap();
 
     let (_lines, events, receiver) = make_events_batch(1, 1);
@@ -385,7 +386,7 @@ async fn s3_healthchecks() {
 
     let config = config(&bucket, 1);
     let service = config
-        .create_service(&ProxyConfig::from_env())
+        .create_service(&ProxyConfig::from_env(), DnsResolver::default())
         .await
         .unwrap();
     config
@@ -399,7 +400,7 @@ async fn s3_healthchecks() {
 async fn s3_healthchecks_invalid_bucket() {
     let config = config("s3_healthchecks_invalid_bucket", 1);
     let service = config
-        .create_service(&ProxyConfig::from_env())
+        .create_service(&ProxyConfig::from_env(), DnsResolver::default())
         .await
         .unwrap();
     assert!(
@@ -445,7 +446,7 @@ async fn s3_flush_on_exhaustion() {
         }
     };
     let prefix = config.key_prefix.clone();
-    let service = config.create_service(&cx.globals.proxy).await.unwrap();
+    let service = config.create_service(&cx.globals.proxy, DnsResolver::default()).await.unwrap();
     let sink = config.build_processor(service, cx).unwrap();
 
     let (lines, _events) = random_lines_with_stream(100, 2, None); // only generate two events (less than batch size)
@@ -507,6 +508,7 @@ async fn client() -> S3Client {
         &proxy,
         tls_options.as_ref(),
         None,
+        DnsResolver::default(),
     )
     .await
     .unwrap()

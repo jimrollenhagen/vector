@@ -68,6 +68,7 @@ where
                     healthcheck: Default::default(),
                     buffer: Default::default(),
                     proxy: Default::default(),
+                    dns_resolver: None,
                     inner: sink,
                 },
             )

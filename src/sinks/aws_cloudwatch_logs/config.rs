@@ -14,6 +14,7 @@ use crate::{
         AcknowledgementsConfig, DataType, GenerateConfig, Input, ProxyConfig, SinkConfig,
         SinkContext,
     },
+    dns::DnsResolver,
     sinks::{
         Healthcheck, VectorSink,
         aws_cloudwatch_logs::{
@@ -185,7 +186,11 @@ pub struct CloudwatchLogsSinkConfig {
 }
 
 impl CloudwatchLogsSinkConfig {
-    pub async fn create_client(&self, proxy: &ProxyConfig) -> crate::Result<CloudwatchLogsClient> {
+    pub async fn create_client(
+        &self,
+        proxy: &ProxyConfig,
+        dns_resolver: DnsResolver,
+    ) -> crate::Result<CloudwatchLogsClient> {
         create_client::<CloudwatchLogsClientBuilder>(
             &CloudwatchLogsClientBuilder {},
             &self.auth,
@@ -194,6 +199,7 @@ impl CloudwatchLogsSinkConfig {
             proxy,
             self.tls.as_ref(),
             None,
+            dns_resolver,
         )
         .await
     }
@@ -205,7 +211,7 @@ impl SinkConfig for CloudwatchLogsSinkConfig {
     async fn build(&self, cx: SinkContext) -> crate::Result<(VectorSink, Healthcheck)> {
         let batcher_settings = self.batch.into_batcher_settings()?;
         let request_settings = self.request.tower.into_settings();
-        let client = self.create_client(cx.proxy()).await?;
+        let client = self.create_client(cx.proxy(), cx.dns_resolver()).await?;
         let svc = ServiceBuilder::new()
             .settings(request_settings, CloudwatchRetryLogic::new())
             .service(CloudwatchLogsPartitionSvc::new(

@@ -4,7 +4,7 @@ use hyper_openssl::HttpsConnector;
 use hyper_proxy::ProxyConnector;
 use tonic::body::BoxBody;
 use tower::ServiceBuilder;
-use vector_lib::configurable::configurable_component;
+use vector_lib::{config::DnsResolver, configurable::configurable_component};
 
 use super::{
     VectorSinkError,
@@ -16,6 +16,7 @@ use crate::{
         AcknowledgementsConfig, GenerateConfig, Input, ProxyConfig, SinkConfig, SinkContext,
         SinkHealthcheckOptions,
     },
+    dns::Resolver,
     http::build_proxy_connector,
     proto::vector as proto,
     sinks::{
@@ -112,7 +113,7 @@ impl SinkConfig for VectorConfig {
         let tls = MaybeTlsSettings::from_config(self.tls.as_ref(), false)?;
         let uri = with_default_scheme(&self.address, tls.is_tls())?;
 
-        let client = new_client(&tls, cx.proxy())?;
+        let client = new_client(&tls, cx.proxy(), cx.dns_resolver())?;
 
         let healthcheck_uri = cx
             .healthcheck
@@ -209,8 +210,10 @@ pub fn with_default_scheme(address: &str, tls: bool) -> crate::Result<Uri> {
 fn new_client(
     tls_settings: &MaybeTlsSettings,
     proxy_config: &ProxyConfig,
-) -> crate::Result<hyper::Client<ProxyConnector<HttpsConnector<HttpConnector>>, BoxBody>> {
-    let proxy = build_proxy_connector(tls_settings.clone(), proxy_config)?;
+    dns_resolver: DnsResolver,
+) -> crate::Result<hyper::Client<ProxyConnector<HttpsConnector<HttpConnector<Resolver>>>, BoxBody>>
+{
+    let proxy = build_proxy_connector(tls_settings.clone(), proxy_config, dns_resolver)?;
 
     Ok(hyper::Client::builder().http2_only(true).build(proxy))
 }

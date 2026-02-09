@@ -16,6 +16,7 @@ use vector_lib::{
 use super::VectorSinkError;
 use crate::{
     Error,
+    dns::Resolver,
     event::{EventFinalizers, EventStatus, Finalizable},
     internal_events::EndpointBytesSent,
     proto::vector as proto_vector,
@@ -68,7 +69,7 @@ impl MetaDescriptive for VectorRequest {
 
 impl VectorService {
     pub fn new(
-        hyper_client: hyper::Client<ProxyConnector<HttpsConnector<HttpConnector>>, BoxBody>,
+        hyper_client: hyper::Client<ProxyConnector<HttpsConnector<HttpConnector<Resolver>>>, BoxBody>,
         uri: Uri,
         compression: bool,
     ) -> Self {
@@ -135,7 +136,7 @@ impl Service<VectorRequest> for VectorService {
 #[derive(Clone, Debug)]
 pub struct HyperSvc {
     uri: Uri,
-    client: hyper::Client<ProxyConnector<HttpsConnector<HttpConnector>>, BoxBody>,
+    client: hyper::Client<ProxyConnector<HttpsConnector<HttpConnector<Resolver>>>, BoxBody>,
 }
 
 impl Service<hyper::Request<BoxBody>> for HyperSvc {

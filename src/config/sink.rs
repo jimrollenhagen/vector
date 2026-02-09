@@ -6,7 +6,7 @@ use serde::Serialize;
 use serde_with::serde_as;
 use vector_lib::{
     buffers::{BufferConfig, BufferType},
-    config::{AcknowledgementsConfig, GlobalOptions, Input},
+    config::{AcknowledgementsConfig, DnsResolver, GlobalOptions, Input},
     configurable::{
         Configurable, GenerateError, Metadata, NamedComponent,
         attributes::CustomAttribute,
@@ -86,6 +86,13 @@ where
     #[serde(default, skip_serializing_if = "vector_lib::serde::is_default")]
     pub proxy: ProxyConfig,
 
+    /// The DNS resolution strategy to use for this sink.
+    ///
+    /// Overrides the global `dns_resolver` setting for this specific sink.
+    #[configurable(derived)]
+    #[serde(default, skip_serializing_if = "vector_lib::serde::is_default")]
+    pub dns_resolver: Option<DnsResolver>,
+
     #[serde(flatten)]
     #[configurable(metadata(docs::hidden))]
     pub inner: BoxedSink,
@@ -107,6 +114,7 @@ where
             healthcheck_uri: None,
             inner: inner.into(),
             proxy: Default::default(),
+            dns_resolver: None,
             graph: Default::default(),
         }
     }
@@ -166,8 +174,14 @@ where
             healthcheck: self.healthcheck,
             healthcheck_uri: self.healthcheck_uri,
             proxy: self.proxy,
+            dns_resolver: self.dns_resolver,
             graph: self.graph,
         }
+    }
+
+    /// Returns the DNS resolver configuration for this sink, if specified.
+    pub const fn dns_resolver(&self) -> Option<DnsResolver> {
+        self.dns_resolver
     }
 }
 
@@ -279,6 +293,7 @@ pub struct SinkContext {
     pub enrichment_tables: vector_lib::enrichment::TableRegistry,
     pub metrics_storage: MetricsStorage,
     pub proxy: ProxyConfig,
+    pub dns_resolver: DnsResolver,
     pub schema: schema::Options,
     pub app_name: String,
     pub app_name_slug: String,
@@ -296,6 +311,7 @@ impl Default for SinkContext {
             enrichment_tables: Default::default(),
             metrics_storage: Default::default(),
             proxy: Default::default(),
+            dns_resolver: Default::default(),
             schema: Default::default(),
             app_name: crate::get_app_name().to_string(),
             app_name_slug: crate::get_slugified_app_name(),
@@ -311,5 +327,9 @@ impl SinkContext {
 
     pub const fn proxy(&self) -> &ProxyConfig {
         &self.proxy
+    }
+
+    pub const fn dns_resolver(&self) -> DnsResolver {
+        self.dns_resolver
     }
 }

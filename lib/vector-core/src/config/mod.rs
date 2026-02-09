@@ -4,6 +4,7 @@ use bitmask_enum::bitmask;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 
+pub mod dns;
 mod global_options;
 mod log_schema;
 pub(crate) mod metrics_expiration;
@@ -11,6 +12,7 @@ pub mod output_id;
 pub mod proxy;
 mod telemetry;
 
+pub use dns::DnsResolver;
 pub use global_options::{GlobalOptions, WildcardMatching};
 pub use log_schema::{LogSchema, init_log_schema, log_schema};
 use lookup::{PathPrefix, lookup_v2::ValuePath, path};

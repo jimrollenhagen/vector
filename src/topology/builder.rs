@@ -606,6 +606,8 @@ impl<'a> Builder<'a> {
                 enrichment_tables: enrichment_tables.clone(),
                 metrics_storage: METRICS_STORAGE.clone(),
                 proxy: ProxyConfig::merge_with_env(&self.config.global.proxy, sink.proxy()),
+                // Use sink-specific dns_resolver if set, otherwise fall back to global
+                dns_resolver: sink.dns_resolver().unwrap_or(self.config.global.dns_resolver),
                 schema: self.config.schema,
                 app_name: crate::get_app_name().to_string(),
                 app_name_slug: crate::get_slugified_app_name(),

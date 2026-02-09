@@ -9,6 +9,7 @@ use super::{config::KinesisFirehoseClientBuilder, *};
 use crate::{
     aws::{AwsAuthentication, ImdsAuthentication, RegionOrEndpoint, create_client},
     config::{ProxyConfig, SinkConfig, SinkContext},
+    dns::DnsResolver,
     sinks::{
         elasticsearch::{
             BulkConfig, ElasticsearchAuthConfig, ElasticsearchCommon, ElasticsearchConfig,
@@ -260,6 +261,7 @@ async fn firehose_client() -> aws_sdk_firehose::Client {
         &proxy,
         None,
         None,
+        DnsResolver::default(),
     )
     .await
     .unwrap()

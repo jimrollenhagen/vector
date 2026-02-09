@@ -13,8 +13,10 @@ use aws_smithy_runtime_api::client::identity::SharedIdentityCache;
 use aws_types::{SdkConfig, region::Region};
 use serde_with::serde_as;
 use vector_lib::{
-    config::proxy::ProxyConfig, configurable::configurable_component,
-    sensitive_string::SensitiveString, tls::TlsConfig,
+    config::{proxy::ProxyConfig, DnsResolver},
+    configurable::configurable_component,
+    sensitive_string::SensitiveString,
+    tls::TlsConfig,
 };
 
 // matches default load timeout from the SDK as of 0.10.1, but lets us confidently document the
@@ -245,7 +247,7 @@ impl AwsAuthentication {
         external_id: Option<&str>,
         session_name: Option<&str>,
     ) -> crate::Result<AssumeRoleProviderBuilder> {
-        let connector = super::connector(proxy, tls_options)?;
+        let connector = super::connector(proxy, tls_options, DnsResolver::default())?;
         let config = SdkConfig::builder()
             .http_client(connector)
             .region(region.clone())
@@ -311,7 +313,7 @@ impl AwsAuthentication {
                 profile,
                 region,
             } => {
-                let connector = super::connector(proxy, tls_options)?;
+                let connector = super::connector(proxy, tls_options, DnsResolver::default())?;
 
                 // The SDK uses the default profile out of the box, but doesn't provide an optional
                 // type in the builder. We can just hardcode it so that everything works.
@@ -391,7 +393,7 @@ async fn default_credentials_provider(
     tls_options: Option<&TlsConfig>,
     imds: ImdsAuthentication,
 ) -> crate::Result<SharedCredentialsProvider> {
-    let connector = super::connector(proxy, tls_options)?;
+    let connector = super::connector(proxy, tls_options, DnsResolver::default())?;
 
     let provider_config = ProviderConfig::empty()
         .with_region(Some(region.clone()))

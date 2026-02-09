@@ -27,6 +27,7 @@ use crate::{
         ClientBuilder, RegionOrEndpoint, auth::AwsAuthentication, create_client, is_retriable_error,
     },
     config::{AcknowledgementsConfig, Input, ProxyConfig, SinkConfig, SinkContext},
+    dns::DnsResolver,
     event::{
         Event,
         metric::{Metric, MetricTags, MetricValue},
@@ -144,7 +145,7 @@ impl SinkConfig for CloudWatchMetricsSinkConfig {
         &self,
         cx: SinkContext,
     ) -> crate::Result<(super::VectorSink, super::Healthcheck)> {
-        let client = self.create_client(&cx.proxy).await?;
+        let client = self.create_client(&cx.proxy, cx.dns_resolver()).await?;
         let healthcheck = self.clone().healthcheck(client.clone()).boxed();
         let sink = CloudWatchMetricsSvc::new(self.clone(), client)?;
         Ok((sink, healthcheck))
@@ -176,7 +177,11 @@ impl CloudWatchMetricsSinkConfig {
         Ok(())
     }
 
-    async fn create_client(&self, proxy: &ProxyConfig) -> crate::Result<CloudwatchClient> {
+    async fn create_client(
+        &self,
+        proxy: &ProxyConfig,
+        dns_resolver: DnsResolver,
+    ) -> crate::Result<CloudwatchClient> {
         let region = if cfg!(test) {
             // Moto (used for mocking AWS) doesn't recognize 'custom' as valid region name
             Some(Region::new("us-east-1"))
@@ -192,6 +197,7 @@ impl CloudWatchMetricsSinkConfig {
             proxy,
             self.tls.as_ref(),
             None,
+            dns_resolver,
         )
         .await
     }

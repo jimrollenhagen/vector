@@ -10,6 +10,7 @@ use vrl::value::Kind;
 use super::{service::LogApiRetry, sink::LogSinkBuilder};
 use crate::{
     common::datadog,
+    dns::DnsResolver,
     http::HttpClient,
     schema,
     sinks::{
@@ -167,7 +168,11 @@ impl DatadogLogsConfig {
         Ok(VectorSink::from_event_streamsink(sink))
     }
 
-    pub fn create_client(&self, proxy: &ProxyConfig) -> crate::Result<HttpClient> {
+    pub fn create_client(
+        &self,
+        proxy: &ProxyConfig,
+        dns_resolver: DnsResolver,
+    ) -> crate::Result<HttpClient> {
         let default_tls_config;
 
         let tls_settings = MaybeTlsSettings::from_config(
@@ -180,7 +185,11 @@ impl DatadogLogsConfig {
             }),
             false,
         )?;
-        Ok(HttpClient::new(tls_settings, proxy)?)
+        Ok(HttpClient::new_with_dns_resolver(
+            tls_settings,
+            proxy,
+            dns_resolver,
+        )?)
     }
 }
 
@@ -188,7 +197,7 @@ impl DatadogLogsConfig {
 #[typetag::serde(name = "datadog_logs")]
 impl SinkConfig for DatadogLogsConfig {
     async fn build(&self, cx: SinkContext) -> crate::Result<(VectorSink, Healthcheck)> {
-        let client = self.create_client(&cx.proxy)?;
+        let client = self.create_client(&cx.proxy, cx.dns_resolver())?;
         let global = cx.extra_context.get_or_default::<datadog::Options>();
         let dd_common = self.local_dd_common.with_globals(global)?;
 

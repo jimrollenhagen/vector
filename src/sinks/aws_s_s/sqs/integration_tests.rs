@@ -8,6 +8,7 @@ use vector_lib::codecs::TextSerializerConfig;
 use crate::{
     aws::{AwsAuthentication, RegionOrEndpoint, create_client},
     common::sqs::SqsClientBuilder,
+    dns::DnsResolver,
     config::{ProxyConfig, SinkConfig, SinkContext},
     sinks::aws_s_s::sqs::{
         BaseSSSinkConfig,
@@ -36,6 +37,7 @@ async fn create_test_client() -> SqsClient {
         &proxy,
         None,
         None,
+        DnsResolver::default(),
     )
     .await
     .unwrap()

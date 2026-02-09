@@ -17,6 +17,7 @@ use super::{
 use crate::{
     common::datadog,
     config::{GenerateConfig, Input, SinkConfig, SinkContext},
+    dns::DnsResolver,
     http::HttpClient,
     sinks::{
         Healthcheck, UriParseSnafu, VectorSink,
@@ -189,7 +190,11 @@ impl DatadogTracesConfig {
         Ok(VectorSink::from_event_streamsink(sink))
     }
 
-    pub fn build_client(&self, proxy: &ProxyConfig) -> crate::Result<HttpClient> {
+    pub fn build_client(
+        &self,
+        proxy: &ProxyConfig,
+        dns_resolver: DnsResolver,
+    ) -> crate::Result<HttpClient> {
         let default_tls_config;
 
         let tls_settings = MaybeTlsSettings::from_config(
@@ -202,7 +207,11 @@ impl DatadogTracesConfig {
             }),
             false,
         )?;
-        Ok(HttpClient::new(tls_settings, proxy)?)
+        Ok(HttpClient::new_with_dns_resolver(
+            tls_settings,
+            proxy,
+            dns_resolver,
+        )?)
     }
 
     fn get_protocol(&self, dd_common: &DatadogCommonConfig) -> String {
@@ -218,7 +227,7 @@ impl DatadogTracesConfig {
 #[typetag::serde(name = "datadog_traces")]
 impl SinkConfig for DatadogTracesConfig {
     async fn build(&self, cx: SinkContext) -> crate::Result<(VectorSink, Healthcheck)> {
-        let client = self.build_client(&cx.proxy)?;
+        let client = self.build_client(&cx.proxy, cx.dns_resolver())?;
         let global = cx.extra_context.get_or_default::<datadog::Options>();
         let dd_common = self.local_dd_common.with_globals(global)?;
         let healthcheck = dd_common.build_healthcheck(client.clone())?;

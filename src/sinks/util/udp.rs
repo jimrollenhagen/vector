@@ -117,8 +117,7 @@ impl UdpConnector {
     }
 
     async fn connect(&self) -> Result<UdpSocket, UdpError> {
-        let ip = dns::Resolver
-            .lookup_ip(self.host.clone())
+        let ip = dns::lookup_ip(self.host.clone())
             .await
             .context(DnsSnafu)?
             .next()

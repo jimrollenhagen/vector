@@ -163,7 +163,11 @@ impl From<HttpMethod> for Method {
 impl HttpSinkConfig {
     fn build_http_client(&self, cx: &SinkContext) -> crate::Result<HttpClient> {
         let tls = TlsSettings::from_options(self.tls.as_ref())?;
-        Ok(HttpClient::new(tls, cx.proxy())?)
+        Ok(HttpClient::new_with_dns_resolver(
+            tls,
+            cx.proxy(),
+            cx.dns_resolver(),
+        )?)
     }
 
     pub(super) fn build_encoder(&self) -> crate::Result<Encoder<Framer>> {
@@ -254,9 +258,9 @@ impl SinkConfig for HttpSinkConfig {
 
         let client = self.build_http_client(&cx)?;
 
-        let healthcheck = match cx.healthcheck.uri {
+        let healthcheck = match &cx.healthcheck.uri {
             Some(healthcheck_uri) => {
-                healthcheck(healthcheck_uri, self.auth.clone(), client.clone()).boxed()
+                healthcheck(healthcheck_uri.clone(), self.auth.clone(), client.clone()).boxed()
             }
             None => future::ok(()).boxed(),
         };
@@ -309,9 +313,10 @@ impl SinkConfig for HttpSinkConfig {
         let service = match &self.auth {
             #[cfg(feature = "aws-core")]
             Some(Auth::Aws { auth, service }) => {
-                let default_region = crate::aws::region_provider(&ProxyConfig::default(), None)?
-                    .region()
-                    .await;
+                let default_region =
+                    crate::aws::region_provider(&ProxyConfig::default(), None, cx.dns_resolver())?
+                        .region()
+                        .await;
                 let region = (match &auth {
                     AwsAuthentication::AccessKey { region, .. } => region.clone(),
                     AwsAuthentication::File { .. } => None,

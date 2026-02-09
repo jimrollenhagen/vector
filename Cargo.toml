@@ -166,6 +166,7 @@ futures = { version = "0.3.31", default-features = false, features = ["compat", 
 futures-util = { version = "0.3.29", default-features = false }
 glob = { version = "0.3.3", default-features = false }
 hickory-proto = { version = "0.25.2", default-features = false, features = ["dnssec-ring"] }
+hickory-resolver = { version = "0.25.2", default-features = false, features = ["tokio", "system-config"] }
 humantime = { version = "2.3.0", default-features = false }
 indexmap = { version = "2.11.0", default-features = false, features = ["serde", "std"] }
 indoc = { version = "2.0.7" }
@@ -435,6 +436,7 @@ tokio-postgres = { version = "0.7.13", default-features = false, features = ["ru
 tokio-tungstenite = { workspace = true, features = ["connect"], optional = true }
 toml.workspace = true
 hickory-proto = { workspace = true, optional = true }
+hickory-resolver = { workspace = true }
 tonic = { workspace = true, optional = true }
 thread_local = { version = "1.1.9", default-features = false, optional = true }
 typetag = { version = "0.2.20", default-features = false }

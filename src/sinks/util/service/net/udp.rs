@@ -49,8 +49,7 @@ pub(super) struct UdpConnector {
 
 impl UdpConnector {
     pub(super) async fn connect(&self) -> Result<UdpSocket, NetError> {
-        let ip = dns::Resolver
-            .lookup_ip(self.address.host.clone())
+        let ip = dns::lookup_ip(self.address.host.clone())
             .await
             .context(FailedToResolve)?
             .next()

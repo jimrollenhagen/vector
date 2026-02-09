@@ -21,6 +21,7 @@ use crate::{
     aws::{RegionOrEndpoint, auth::AwsAuthentication, create_client, create_client_and_region},
     codecs::DecodingConfig,
     common::{s3::S3ClientBuilder, sqs::SqsClientBuilder},
+    dns::DnsResolver,
     config::{
         ProxyConfig, SourceAcknowledgementsConfig, SourceConfig, SourceContext, SourceOutput,
     },
@@ -254,6 +255,7 @@ impl AwsS3Config {
             proxy,
             self.tls_options.as_ref(),
             None,
+            DnsResolver::default(),
         )
         .await?;
 
@@ -271,6 +273,7 @@ impl AwsS3Config {
                     proxy,
                     sqs.tls_options.as_ref(),
                     sqs.timeout.as_ref(),
+                    DnsResolver::default(),
                 )
                 .await?;
 
@@ -469,6 +472,7 @@ mod integration_tests {
         SourceSender,
         aws::{AwsAuthentication, RegionOrEndpoint, create_client},
         common::sqs::SqsClientBuilder,
+        dns::DnsResolver,
         config::{ProxyConfig, SourceConfig, SourceContext},
         event::EventStatus::{self, *},
         line_agg,
@@ -1044,6 +1048,7 @@ mod integration_tests {
             &proxy_config,
             None,
             None,
+            DnsResolver::default(),
         )
         .await
         .unwrap()
@@ -1064,6 +1069,7 @@ mod integration_tests {
             &proxy_config,
             None,
             None,
+            DnsResolver::default(),
         )
         .await
         .unwrap()

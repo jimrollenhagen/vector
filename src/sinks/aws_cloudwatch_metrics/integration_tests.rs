@@ -4,6 +4,7 @@ use vector_lib::metric_tags;
 
 use super::*;
 use crate::{
+    dns::DnsResolver,
     event::{Event, MetricKind, metric::StatisticKind},
     test_util::{
         components::{AWS_SINK_TAGS, run_and_assert_sink_compliance},
@@ -27,7 +28,7 @@ fn config() -> CloudWatchMetricsSinkConfig {
 async fn cloudwatch_metrics_healthcheck() {
     let config = config();
     let client = config
-        .create_client(&ProxyConfig::from_env())
+        .create_client(&ProxyConfig::from_env(), DnsResolver::default())
         .await
         .unwrap();
     config.healthcheck(client).await.unwrap();
@@ -37,7 +38,10 @@ async fn cloudwatch_metrics_healthcheck() {
 async fn cloudwatch_metrics_put_data() {
     let cx = SinkContext::default();
     let config = config();
-    let client = config.create_client(&cx.globals.proxy).await.unwrap();
+    let client = config
+        .create_client(&cx.globals.proxy, cx.dns_resolver())
+        .await
+        .unwrap();
     let sink = CloudWatchMetricsSvc::new(config, client).unwrap();
 
     let mut events = Vec::new();
@@ -96,7 +100,10 @@ async fn cloudwatch_metrics_put_data() {
 async fn cloudwatch_metrics_namespace_partitioning() {
     let cx = SinkContext::default();
     let config = config();
-    let client = config.create_client(&cx.globals.proxy).await.unwrap();
+    let client = config
+        .create_client(&cx.globals.proxy, cx.dns_resolver())
+        .await
+        .unwrap();
     let sink = CloudWatchMetricsSvc::new(config, client).unwrap();
 
     let mut events = Vec::new();

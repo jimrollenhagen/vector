@@ -17,6 +17,7 @@ use super::{
     service::{HttpRequestBuilder, MetadataFields},
 };
 use crate::{
+    dns::DnsResolver,
     http::HttpClient,
     internal_events::TemplateRenderingError,
     sinks::{
@@ -47,9 +48,14 @@ pub enum HealthcheckError {
 pub fn create_client(
     tls: Option<&TlsConfig>,
     proxy_config: &ProxyConfig,
+    dns_resolver: DnsResolver,
 ) -> crate::Result<HttpClient> {
     let tls_settings = TlsSettings::from_options(tls)?;
-    Ok(HttpClient::new(tls_settings, proxy_config)?)
+    Ok(HttpClient::new_with_dns_resolver(
+        tls_settings,
+        proxy_config,
+        dns_resolver,
+    )?)
 }
 
 // TODO: `HttpBatchService` has been deprecated for direct use in sinks.
@@ -178,6 +184,7 @@ mod tests {
         matchers::{header, method, path},
     };
 
+    use crate::dns::DnsResolver;
     use crate::sinks::{
         splunk_hec::common::{
             EndpointTarget, HOST_FIELD, SOURCE_FIELD, build_healthcheck, build_uri, create_client,
@@ -197,7 +204,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_client(None, &ProxyConfig::default()).unwrap();
+        let client = create_client(None, &ProxyConfig::default(), DnsResolver::default()).unwrap();
         let healthcheck = build_healthcheck(mock_server.uri(), "token".to_string(), client);
 
         assert!(healthcheck.await.is_ok())
@@ -214,7 +221,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_client(None, &ProxyConfig::default()).unwrap();
+        let client = create_client(None, &ProxyConfig::default(), DnsResolver::default()).unwrap();
         let healthcheck = build_healthcheck(mock_server.uri(), "token".to_string(), client);
 
         assert_eq!(
@@ -234,7 +241,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_client(None, &ProxyConfig::default()).unwrap();
+        let client = create_client(None, &ProxyConfig::default(), DnsResolver::default()).unwrap();
         let healthcheck = build_healthcheck(mock_server.uri(), "token".to_string(), client);
 
         assert_eq!(
@@ -254,7 +261,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_client(None, &ProxyConfig::default()).unwrap();
+        let client = create_client(None, &ProxyConfig::default(), DnsResolver::default()).unwrap();
         let healthcheck = build_healthcheck(mock_server.uri(), "token".to_string(), client);
 
         assert_eq!(
@@ -408,13 +415,15 @@ mod integration_tests {
         integration_test_helpers::{get_token, splunk_hec_address},
     };
     use crate::{
-        assert_downcast_matches, sinks::splunk_hec::common::HealthcheckError,
+        assert_downcast_matches,
+        dns::DnsResolver,
+        sinks::splunk_hec::common::HealthcheckError,
         test_util::retry_until,
     };
 
     #[tokio::test]
     async fn splunk_healthcheck_ok() {
-        let client = create_client(None, &ProxyConfig::default()).unwrap();
+        let client = create_client(None, &ProxyConfig::default(), DnsResolver::default()).unwrap();
         let address = splunk_hec_address();
         let token = get_token().await;
 
@@ -428,7 +437,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn splunk_healthcheck_server_not_listening() {
-        let client = create_client(None, &ProxyConfig::default()).unwrap();
+        let client = create_client(None, &ProxyConfig::default(), DnsResolver::default()).unwrap();
         let healthcheck = build_healthcheck(
             "http://localhost:1111/".to_string(),
             get_token().await,
@@ -440,7 +449,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn splunk_healthcheck_server_unavailable() {
-        let client = create_client(None, &ProxyConfig::default()).unwrap();
+        let client = create_client(None, &ProxyConfig::default(), DnsResolver::default()).unwrap();
         let healthcheck = build_healthcheck(
             "http://localhost:5503/".to_string(),
             get_token().await,

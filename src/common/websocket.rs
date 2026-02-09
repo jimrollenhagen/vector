@@ -87,8 +87,7 @@ impl WebSocketConnector {
     }
 
     async fn tls_connect(&self) -> Result<MaybeTlsStream<TcpStream>, WebSocketError> {
-        let ip = dns::Resolver
-            .lookup_ip(self.host.clone())
+        let ip = dns::lookup_ip(self.host.clone())
             .await
             .context(DnsSnafu)?
             .next()

@@ -6,6 +6,7 @@ use vector_lib::configurable::{component::GenerateConfig, configurable_component
 use crate::{
     aws::{AwsAuthentication, ClientBuilder, RegionOrEndpoint, create_client},
     config::{ProxyConfig, SecretBackend},
+    dns::DnsResolver,
     signal,
     tls::TlsConfig,
 };
@@ -66,6 +67,7 @@ impl SecretBackend for AwsSecretsManagerBackend {
             &ProxyConfig::default(),
             self.tls.as_ref(),
             None,
+            DnsResolver::default(),
         )
         .await?;
 

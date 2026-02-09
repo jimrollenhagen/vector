@@ -18,6 +18,7 @@ use crate::{
     aws::{AwsAuthentication, RegionOrEndpoint, create_client, is_retriable_error},
     common::s3::S3ClientBuilder,
     config::ProxyConfig,
+    dns::DnsResolver,
     http::status,
     sinks::{Healthcheck, util::retries::RetryLogic},
     tls::TlsConfig,
@@ -433,6 +434,7 @@ pub async fn create_service(
     proxy: &ProxyConfig,
     tls_options: Option<&TlsConfig>,
     force_path_style: impl Into<bool>,
+    dns_resolver: DnsResolver,
 ) -> crate::Result<S3Service> {
     let endpoint = region.endpoint();
     let region = region.region();
@@ -447,6 +449,7 @@ pub async fn create_service(
         proxy,
         tls_options,
         None,
+        dns_resolver,
     )
     .await?;
     Ok(S3Service::new(client))

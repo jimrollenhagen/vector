@@ -14,6 +14,7 @@ use super::{
 use crate::{
     aws::{ClientBuilder, create_client, is_retriable_error},
     config::{AcknowledgementsConfig, Input, ProxyConfig, SinkConfig, SinkContext},
+    dns::DnsResolver,
     sinks::{
         Healthcheck, VectorSink,
         prelude::*,
@@ -100,7 +101,11 @@ impl KinesisStreamsSinkConfig {
         }
     }
 
-    pub async fn create_client(&self, proxy: &ProxyConfig) -> crate::Result<KinesisClient> {
+    pub async fn create_client(
+        &self,
+        proxy: &ProxyConfig,
+        dns_resolver: DnsResolver,
+    ) -> crate::Result<KinesisClient> {
         create_client::<KinesisClientBuilder>(
             &KinesisClientBuilder {},
             &self.base.auth,
@@ -109,6 +114,7 @@ impl KinesisStreamsSinkConfig {
             proxy,
             self.base.tls.as_ref(),
             None,
+            dns_resolver,
         )
         .await
     }
@@ -118,7 +124,7 @@ impl KinesisStreamsSinkConfig {
 #[typetag::serde(name = "aws_kinesis_streams")]
 impl SinkConfig for KinesisStreamsSinkConfig {
     async fn build(&self, cx: SinkContext) -> crate::Result<(VectorSink, Healthcheck)> {
-        let client = self.create_client(&cx.proxy).await?;
+        let client = self.create_client(&cx.proxy, cx.dns_resolver()).await?;
         let healthcheck = self.clone().healthcheck(client.clone()).boxed();
 
         let batch_settings = self

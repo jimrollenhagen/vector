@@ -30,12 +30,13 @@ use tower_http::{
     trace::TraceLayer,
 };
 use tracing::{Instrument, Span};
-use vector_lib::{configurable::configurable_component, sensitive_string::SensitiveString};
+use vector_lib::{config::DnsResolver, configurable::configurable_component, sensitive_string::SensitiveString};
 
 #[cfg(feature = "aws-core")]
 use crate::aws::AwsAuthentication;
 use crate::{
     config::ProxyConfig,
+    dns::Resolver,
     internal_events::{HttpServerRequestReceived, HttpServerResponseSent, http_client},
     tls::{MaybeTlsSettings, TlsError, tls_connector_builder},
 };
@@ -59,12 +60,16 @@ pub enum HttpError {
     CallRequest { source: hyper::Error },
     #[snafu(display("Failed to build HTTP request: {}", source))]
     BuildRequest { source: http::Error },
+    #[snafu(display("Failed to create DNS resolver: {}", source))]
+    BuildDnsResolver { source: crate::dns::DnsError },
 }
 
 impl HttpError {
     pub const fn is_retriable(&self) -> bool {
         match self {
-            HttpError::BuildRequest { .. } | HttpError::MakeProxyConnector { .. } => false,
+            HttpError::BuildRequest { .. }
+            | HttpError::MakeProxyConnector { .. }
+            | HttpError::BuildDnsResolver { .. } => false,
             HttpError::CallRequest { .. }
             | HttpError::BuildTlsConnector { .. }
             | HttpError::MakeHttpsConnector { .. } => true,
@@ -73,7 +78,7 @@ impl HttpError {
 }
 
 pub type HttpClientFuture = <HttpClient as Service<http::Request<Body>>>::Future;
-type HttpProxyConnector = ProxyConnector<HttpsConnector<HttpConnector>>;
+type HttpProxyConnector = ProxyConnector<HttpsConnector<HttpConnector<Resolver>>>;
 
 pub struct HttpClient<B = Body> {
     client: Client<HttpProxyConnector, B>,
@@ -91,15 +96,34 @@ where
         tls_settings: impl Into<MaybeTlsSettings>,
         proxy_config: &ProxyConfig,
     ) -> Result<HttpClient<B>, HttpError> {
-        HttpClient::new_with_custom_client(tls_settings, proxy_config, &mut Client::builder())
+        HttpClient::new_with_custom_client(
+            tls_settings,
+            proxy_config,
+            &mut Client::builder(),
+            DnsResolver::default(),
+        )
+    }
+
+    pub fn new_with_dns_resolver(
+        tls_settings: impl Into<MaybeTlsSettings>,
+        proxy_config: &ProxyConfig,
+        dns_resolver: DnsResolver,
+    ) -> Result<HttpClient<B>, HttpError> {
+        HttpClient::new_with_custom_client(
+            tls_settings,
+            proxy_config,
+            &mut Client::builder(),
+            dns_resolver,
+        )
     }
 
     pub fn new_with_custom_client(
         tls_settings: impl Into<MaybeTlsSettings>,
         proxy_config: &ProxyConfig,
         client_builder: &mut client::Builder,
+        dns_resolver: DnsResolver,
     ) -> Result<HttpClient<B>, HttpError> {
-        let proxy_connector = build_proxy_connector(tls_settings.into(), proxy_config)?;
+        let proxy_connector = build_proxy_connector(tls_settings.into(), proxy_config, dns_resolver)?;
         let client = client_builder.build(proxy_connector.clone());
 
         let app_name = crate::get_app_name();
@@ -175,12 +199,13 @@ where
 pub fn build_proxy_connector(
     tls_settings: MaybeTlsSettings,
     proxy_config: &ProxyConfig,
-) -> Result<ProxyConnector<HttpsConnector<HttpConnector>>, HttpError> {
+    dns_resolver: DnsResolver,
+) -> Result<ProxyConnector<HttpsConnector<HttpConnector<Resolver>>>, HttpError> {
     // Create dedicated TLS connector for the proxied connection with user TLS settings.
     let tls = tls_connector_builder(&tls_settings)
         .context(BuildTlsConnectorSnafu)?
         .build();
-    let https = build_tls_connector(tls_settings)?;
+    let https = build_tls_connector(tls_settings, dns_resolver)?;
     let mut proxy = ProxyConnector::new(https).unwrap();
     // Make proxy connector aware of user TLS settings by setting the TLS connector:
     // https://github.com/vectordotdev/vector/issues/13683
@@ -193,8 +218,10 @@ pub fn build_proxy_connector(
 
 pub fn build_tls_connector(
     tls_settings: MaybeTlsSettings,
-) -> Result<HttpsConnector<HttpConnector>, HttpError> {
-    let mut http = HttpConnector::new();
+    dns_resolver: DnsResolver,
+) -> Result<HttpsConnector<HttpConnector<Resolver>>, HttpError> {
+    let resolver = Resolver::from_config(dns_resolver).context(BuildDnsResolverSnafu)?;
+    let mut http = HttpConnector::new_with_resolver(resolver);
     http.enforce_http(false);
 
     let tls = tls_connector_builder(&tls_settings).context(BuildTlsConnectorSnafu)?;

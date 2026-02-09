@@ -14,6 +14,7 @@ use super::{
 use crate::{
     aws::{ClientBuilder, create_client, is_retriable_error},
     config::{AcknowledgementsConfig, GenerateConfig, Input, ProxyConfig, SinkConfig, SinkContext},
+    dns::DnsResolver,
     sinks::{
         Healthcheck, VectorSink,
         util::{
@@ -101,7 +102,11 @@ impl KinesisFirehoseSinkConfig {
         }
     }
 
-    pub async fn create_client(&self, proxy: &ProxyConfig) -> crate::Result<KinesisClient> {
+    pub async fn create_client(
+        &self,
+        proxy: &ProxyConfig,
+        dns_resolver: DnsResolver,
+    ) -> crate::Result<KinesisClient> {
         create_client::<KinesisFirehoseClientBuilder>(
             &KinesisFirehoseClientBuilder {},
             &self.base.auth,
@@ -110,6 +115,7 @@ impl KinesisFirehoseSinkConfig {
             proxy,
             self.base.tls.as_ref(),
             None,
+            dns_resolver,
         )
         .await
     }
@@ -119,7 +125,7 @@ impl KinesisFirehoseSinkConfig {
 #[typetag::serde(name = "aws_kinesis_firehose")]
 impl SinkConfig for KinesisFirehoseSinkConfig {
     async fn build(&self, cx: SinkContext) -> crate::Result<(VectorSink, Healthcheck)> {
-        let client = self.create_client(&cx.proxy).await?;
+        let client = self.create_client(&cx.proxy, cx.dns_resolver()).await?;
         let healthcheck = self.clone().healthcheck(client.clone()).boxed();
 
         let batch_settings = self

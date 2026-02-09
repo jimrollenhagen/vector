@@ -6,7 +6,7 @@ use vector_config::{configurable_component, impl_generate_config_from_default};
 
 use super::{
     super::default_data_dir, AcknowledgementsConfig, LogSchema, Telemetry,
-    metrics_expiration::PerMetricSetExpiration, proxy::ProxyConfig,
+    dns::DnsResolver, metrics_expiration::PerMetricSetExpiration, proxy::ProxyConfig,
 };
 use crate::serde::bool_or_struct;
 
@@ -111,6 +111,15 @@ pub struct GlobalOptions {
     #[serde(default, skip_serializing_if = "crate::serde::is_default")]
     #[configurable(metadata(docs::common = false, docs::required = false))]
     pub proxy: ProxyConfig,
+
+    /// The DNS resolution strategy to use for all sinks by default.
+    ///
+    /// This controls how Vector resolves DNS names when connecting to endpoints.
+    /// Individual sinks can override this setting.
+    #[configurable(derived)]
+    #[serde(default, skip_serializing_if = "crate::serde::is_default")]
+    #[configurable(metadata(docs::common = false, docs::required = false))]
+    pub dns_resolver: DnsResolver,
 
     /// Controls how acknowledgements are handled for all sinks by default.
     ///
@@ -273,6 +282,13 @@ impl GlobalOptions {
             errors.push("conflicting values for 'proxy.no_proxy' found".to_owned());
         }
 
+        // Check dns_resolver conflicts - only if both are non-default and different
+        let self_dns_is_default = self.dns_resolver == DnsResolver::default();
+        let with_dns_is_default = with.dns_resolver == DnsResolver::default();
+        if !self_dns_is_default && !with_dns_is_default && self.dns_resolver != with.dns_resolver {
+            errors.push("conflicting values for 'dns_resolver' found".to_owned());
+        }
+
         if conflicts(self.timezone.as_ref(), with.timezone.as_ref()) {
             errors.push("conflicting values for 'timezone' found".to_owned());
         }
@@ -326,6 +342,13 @@ impl GlobalOptions {
             (None, None) => None,
         };
 
+        // Merge dns_resolver - prefer non-default value
+        let dns_resolver = if self_dns_is_default {
+            with.dns_resolver
+        } else {
+            self.dns_resolver
+        };
+
         if errors.is_empty() {
             Ok(Self {
                 data_dir,
@@ -335,6 +358,7 @@ impl GlobalOptions {
                 acknowledgements: self.acknowledgements.merge_default(&with.acknowledgements),
                 timezone: self.timezone.or(with.timezone),
                 proxy: self.proxy.merge(&with.proxy),
+                dns_resolver,
                 expire_metrics: self.expire_metrics.or(with.expire_metrics),
                 expire_metrics_secs: self.expire_metrics_secs.or(with.expire_metrics_secs),
                 expire_metrics_per_metric_set: merged_expire_metrics_per_metric_set,
